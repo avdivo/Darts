@@ -3,14 +3,43 @@ import itertools
 import random
 import sys, os
 
+class Player():
+    # Игрок
+    def __init__(self, num, name):
+        self.number = num
+        self.name = name
+        self.score = 0
+
+    def __str__(self):
+        return f'Номер: {self.number}\nИмя: {self.name}\nОчки: {self.score}'
+
 class Players():
     # Класс для управления игроками и их очками
     def __init__(self):
         # Читаем файл Players.txt с именами игроков
-        PATH = os.path.join(sys.path[0], 'Players.txt')  # Путь к файлу с именами
-        with open(PATH, "r") as f:
-            names = f.read().split()
-        print(names)
+        try:
+            PATH = os.path.join(sys.path[0], 'Players.txt')  # Путь к файлу с именами
+            with open(PATH, 'r', encoding='utf8') as f:
+                names = f.read().split()
+        except:
+            names = ['Игрок 1', 'Игрок 2']
+        random.shuffle(names)  # Перемешиваем игроков
+        self.players = [] # Все игроки
+        for i, name in enumerate(names):
+            self.players.append(Player(i, name)) # Номер игрока, имя, очки
+        self.current_player = 0 # Текущий игрок
+
+    # Возвращяет объект игрока
+    def get_player(self):
+        return self.players[self.current_player]
+
+    # Сделать текущим следующего игрока и вернуть его
+    def next_player(self):
+        self.current_player += 1
+        if self.current_player == len(self.players):
+            self.current_player = 0
+        return self.players[self.current_player]
+
 
 class ButtonScore():
 # Кнопки для зачисления очков
@@ -69,6 +98,10 @@ def clear(event):
     word1.select_range(0, END)
 
 # Интерфейс
+a = Players()
+print(a.get_player())
+print(a.next_player())
+exit()
 
 root = Tk()
 root.attributes("-fullscreen", True)
