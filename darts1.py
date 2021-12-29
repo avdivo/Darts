@@ -3,6 +3,109 @@ import itertools
 import random
 import sys, os
 
+class History():
+    # Класс управляет историей ходов
+    def __init__(self):
+        self.history = [] # Список объектов ходов
+        self.current_step = 0 # Текущий ход
+
+    def new_step(self, player):
+        # Создаем новый ход для переданного игрока
+        # Если ход добавляется не в конец истории (она отмотана) то вся последующая история сначала удаляется
+        if len(self.history) > self.current_step:
+            del(self.history[self.current_step:])
+        self.current_step += 1
+        self.history.append(Step(player, self.current_step))
+
+class Step():
+    # Информация о каждом ходе и методы ее изменения
+    def __init__(self, player, number_step):
+        self.number_step = number_step # Номер хода
+        self.try_number = 1 # Какая текущая попытка
+        self.try1 = 0 # Очки за бросок (выбитый сектор)
+        self.try2 = 0
+        self.try3 = 0
+        self.summa = 0 # Выбитая сумма. Если в эту попытку сумма зачислилась игроку, то тут та тумма иначе 0
+        self.player = player # Ссылка на объект игрока чей ход
+
+class Scores():
+    # Класс ведет счет очков, создает таблицу сумм и баллов и управляет ей через вложенный подкласс
+    # Получает ссылку на поле подсказок и обновляет их
+    class ButtonScore():
+        # Вложенный класс создает кнопки сумм рисует их и управляет ими
+        def __init__(self, root, x, y, summa, score):
+            self.activ = True  # Активна ли кнопка
+            self.x = x
+            self.y = y
+            self.summa = summa
+            self.score = score
+            self.root = root
+            self.btn = Button(root, text=summa, font="Arial 10", width=5, relief=RIDGE)
+            self.btn.place(x=x, y=y)
+
+        # Убираем сумму из таблицы и запрещаем ее показ. Возвращяет очки за нее
+        def delete_summ(self):
+            if self.activ:
+                self.btn.place_forget()
+                self.activ = False
+                return self.score
+            else:
+                return 0
+
+        # Возвращяем сумму в таблицу и разрешаем ее показ. Возвращяет очки за нее
+        def return_summ(self):
+            self.activ = True
+            self.btn.place(x=self.x, y=self.y)
+            return self.score
+
+        # Временно прячем сумму из таблицы
+        def hide_summ(self):
+            if self.activ:
+                self.btn.place_forget()
+
+        # Возвращяем сумму в таблицу (временно спрятанную), если она активна
+        def show_summ(self):
+            if self.activ:
+                self.btn.place(x=self.x, y=self.y)
+
+        # Подсвечиваем сумму
+        def light_summ(self):
+            if self.activ:
+                self.btn['background'] = 'red'
+
+        # Убираем подсветку с суммы
+        def normal_summ(self):
+            if self.activ:
+                self.btn['background'] = root['background']
+
+    # Методы класса Scores
+    def __init__(self):
+        all_sectors = list(range(1, 21))
+        all_res_dict = dict()
+        for res in range(3, 61):
+            # Считаем. сколько есть способов выбить по секторам каждую сумму от 1 до 60
+            that = [i for i in itertools.combinations_with_replacement(all_sectors, 3) if sum(i) == res]
+            # Группируем в словарь с key - количество очков за выбивание суммы
+            # value - какие суммы нужно выбить за эти очки
+            if 56 - len(that) in all_res_dict:
+                all_res_dict[56 - len(that)].append(res)
+            else:
+                all_res_dict[56 - len(that)] = [res]
+
+        # Словарь, где ключи - это суммы, а значения объекты кнопок-ячеек
+        self.all_summ = dict()
+        y = 10
+        for key, val in all_res_dict.items():
+            x = 100
+            btn = Button(root, text=key, font="Arial 10", width=5, relief=RIDGE)
+            btn.place(x=x, y=y)
+            x += 50
+            for i in val:
+                x += 55
+                self.all_summ[i] = self.ButtonScore(root, x, y, i, key)
+            y += 28
+
+
 class Player():
     # Игрок
     def __init__(self, num, name):
@@ -40,35 +143,17 @@ class Players():
             self.current_player = 0
         return self.players[self.current_player]
 
-
-class ButtonScore():
-# Кнопки для зачисления очков
-    def __init__(self, root, x, y, summa, score):
-        self.activ = True  # Активна ли кнопка
-        self.summa = summa
-        self.score = score
-        self.root = root
-        self.btn = Button(root, text=summa, font="Arial 10", width=5, relief=RIDGE, background = None)
-        self.btn.place(x=x, y=y)
-
-    # Если очки этой категории еще не забрали возвращяем их и делаем неактивной эту категорию
-    def get_score(self):
-        if self.activ:
-            self.btn.place_forget()
-            self.activ = False
-            return self.score
-        else:
-            return 0
-
-
 def word1_press(event):
     print('Ok 1')
     word2.focus()
     word2.select_range(0, END)
 
+
 def word2_press(event):
     word3.focus()
     word3.select_range(0, END)
+
+
 
 def word3_press(event):
     global who_step
@@ -97,38 +182,18 @@ def clear(event):
     word1.focus()
     word1.select_range(0, END)
 
-# Интерфейс
-a = Players()
-print(a.get_player())
-print(a.next_player())
-exit()
+
 
 root = Tk()
 root.attributes("-fullscreen", True)
 
-all_sectors = list(range(1, 21))
-all_res_dict = dict()
-for res in range(3, 61):
-    # Считаем. сколько есть способов выбить по секторам каждую сумму от 1 до 60
-    that = [i for i in itertools.combinations_with_replacement(all_sectors, 3) if sum(i) == res]
-    # Группируем в словарь с key - количество очков за выбивание суммы
-    # value - какие суммы нужно выбить за эти очки
-    if 56-len(that) in all_res_dict:
-        all_res_dict[56-len(that)].append(res)
-    else:
-        all_res_dict[56-len(that)] = [res]
+a = Players()
+# Интерфейс
+print(a.get_player())
+print(a.next_player())
 
-all_obj = dict()
-y = 10
-for key, val in all_res_dict.items():
-    x = 100
-    btn = Button(root, text=key, font="Arial 10", width=5, relief=RIDGE)
-    btn.place(x=x, y=y)
-    x += 50
-    for i in val:
-        x += 55
-        all_obj[i] = ButtonScore(root, x, y, i, key)
-    y += 28
+scores = Scores()
+
 
 who_step = random.randint(0, 1)
 players = ['Сергей', 'Алексей']
