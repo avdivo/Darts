@@ -1,34 +1,32 @@
+import time
 from tkinter import *
 import itertools
 import random
 import sys, os
 
-class History():
-    # Класс управляет историей ходов
-    def __init__(self):
-        self.history = [] # Список объектов ходов
-        self.current_step = 0 # Текущий ход
+class Steps:
+    history = []  # Список объектов ходов
+    current_step = 0  # Текущий ход
 
-    def new_step(self, player):
+    # Информация о каждом ходе и методы ее изменения
+    def __init__(self, player):
         # Создаем новый ход для переданного игрока
         # Если ход добавляется не в конец истории (она отмотана) то вся последующая история сначала удаляется
-        if len(self.history) > self.current_step:
-            del(self.history[self.current_step:])
-        self.current_step += 1
-        self.history.append(Step(player, self.current_step))
-
-class Step():
-    # Информация о каждом ходе и методы ее изменения
-    def __init__(self, player, number_step):
-        self.number_step = number_step # Номер хода
+        if len(Steps.history) > Steps.current_step:
+            del(Steps.history[Steps.current_step:])
+        Steps.current_step += 1
+        self.number_step = Steps.current_step # Номер хода
         self.try_number = 1 # Какая текущая попытка
         self.try1 = 0 # Очки за бросок (выбитый сектор)
         self.try2 = 0
         self.try3 = 0
         self.summa = 0 # Выбитая сумма. Если в эту попытку сумма зачислилась игроку, то тут та тумма иначе 0
         self.player = player # Ссылка на объект игрока чей ход
+        Steps.history.append(self)
 
-class Scores():
+    # @classmethod
+
+class Scores:
     # Класс ведет счет очков, создает таблицу сумм и баллов и управляет ей через вложенный подкласс
     # Получает ссылку на поле подсказок и обновляет их
     class ButtonScore():
@@ -113,26 +111,46 @@ class Player():
         self.name = name
         self.score = 0
 
+    # Вернуть имя игрока
+    def get_name(self):
+        return self.name
+
+    # Вернуть очки игрока
+    def get_score(self):
+        return self.score
+
     def __str__(self):
         return f'Номер: {self.number}\nИмя: {self.name}\nОчки: {self.score}'
 
 class Players():
     # Класс для управления игроками и их очками
-    def __init__(self):
+    def __init__(self, root):
         # Читаем файл Players.txt с именами игроков
         try:
             PATH = os.path.join(sys.path[0], 'Players.txt')  # Путь к файлу с именами
             with open(PATH, 'r', encoding='utf8') as f:
-                names = f.read().split()
+                names = f.read().split('\n')
         except:
             names = ['Игрок 1', 'Игрок 2']
         random.shuffle(names)  # Перемешиваем игроков
         self.players = [] # Все игроки
+        font_size = 45 - len(names) * 2
+        spase_y = 400 // len(names)
+        space_x = 600 - len(names) * 15
+        self.string_table = [] # Список кортежей, номера строк таблицы (метка имени, метка очков)
         for i, name in enumerate(names):
+            # Создаем игроков и готовим турнирную таблицу
             self.players.append(Player(i, name)) # Номер игрока, имя, очки
+            n = Label(root, text='', font=f'Helvetica {font_size}', width=20, anchor="w")
+            s = Label(root, text='0', font=f'Helvetica {font_size}', width=4, anchor="e")
+            n.place(x=space_x//8+450, y=50+i*spase_y)
+            s.place(x=500+space_x, y=50+i*spase_y)
+            self.string_table.append((n, s)) # В каждой строке имя и очки
         self.current_player = 0 # Текущий игрок
+        self.print_table()
+        self.select_player(self.players[0]) # На старте игроки стоят по очереди ходов, выделяем первого
 
-    # Возвращяет объект игрока
+    # Возвращяет объект текущего игрока
     def get_player(self):
         return self.players[self.current_player]
 
@@ -141,7 +159,21 @@ class Players():
         self.current_player += 1
         if self.current_player == len(self.players):
             self.current_player = 0
+        self.select_player(self.players[self.current_player]) # Подсвечиваем текущего игрока
         return self.players[self.current_player]
+
+    # Выделяем цветом указанного игрока (в турнирной таблице он может стоять в любой позиции)
+    def select_player(self, player):
+        act = self.players.index(player) # Индекс игрока в массиве, это его место в таблице
+        self.string_table[act][0]['fg'] = 'red'  # В списке кортежей label обхекты, по индексу 0 - имя, его красим
+
+    # Вывод турнирной таблицы
+    def print_table(self):
+        self.players.sort(key=lambda x: x.score, reverse=True) # Сортируем массив игроков по очкам
+        for i, st in enumerate(self.string_table):
+            st[0]['text'] = self.players[i].get_name()
+            st[0]['fg'] = 'black' # Все выводятся черным цветом
+            st[1]['text'] = self.players[i].get_score()
 
 def word1_press(event):
     print('Ok 1')
@@ -187,27 +219,24 @@ def clear(event):
 root = Tk()
 root.attributes("-fullscreen", True)
 
-a = Players()
-# Интерфейс
-print(a.get_player())
-print(a.next_player())
+players = Players(root) # Создаем объекты игроков и турнирную таблицу
+player = players.get_player() # Получаем текущего игрока (первого)
 
-scores = Scores()
+scores = Scores() # Создаем объект управляющий очками, таблицей и подсказкой
 
-
-who_step = random.randint(0, 1)
-players = ['Сергей', 'Алексей']
+step = Steps(player) # Создаем первый ход и передаем ему первого игрока
 
 
-pl1 = Label(root, text=players[who_step], font=f'Helvetica 30', width=10)
-pl2 = Label(root, text=players[not who_step], font=f'Helvetica 30', width=10)
-pl1.place(x=600, y=100)
-pl2.place(x=900, y=100)
 
-sc1 = Label(root, text=0, font=f'Helvetica 50', width=10)
-sc2 = Label(root, text=0, font=f'Helvetica 50', width=10)
-sc1.place(x=530, y=200)
-sc2.place(x=830, y=200)
+# pl1 = Label(root, text=players[who_step], font=f'Helvetica 30', width=10)
+# pl2 = Label(root, text=players[not who_step], font=f'Helvetica 30', width=10)
+# pl1.place(x=600, y=100)
+# pl2.place(x=900, y=100)
+#
+# sc1 = Label(root, text=0, font=f'Helvetica 50', width=10)
+# sc2 = Label(root, text=0, font=f'Helvetica 50', width=10)
+# sc1.place(x=530, y=200)
+# sc2.place(x=830, y=200)
 
 score1 = StringVar() # Переменная для поля ввода
 score2 = StringVar()
@@ -230,8 +259,8 @@ score3.set(0)
 word1.focus()
 word1.select_range(0, END)
 
-who = Label(root, text=players[who_step], font=f'Helvetica 30', width=10)
-who.place(x=700, y=400)
+# who = Label(root, text=players[who_step], font=f'Helvetica 30', width=10)
+# who.place(x=700, y=400)
 
 
 
