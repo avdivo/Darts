@@ -4,39 +4,71 @@ import itertools
 import random
 import sys, os
 
+# Класс для управления ходами (отдельные объекты)
+# Получает объекты очков и игроков и может обращяться к ним, а так же экран для вывода информации
+# Выводит информационную строку и подсказки
 class Steps:
-    history = []  # Список объектов ходов
-    current_step = 0  # Текущий ход
+    def __init__(self, scores, players, root):
+        self.scores = scores
+        self.players = players
+        self.root = root
+        self.info_string_label = Label(root, text='Строка', font=f'Helvetica 25', width=40, anchor="w")
+        self.info_string_label.place(x=450, y=470)
+        self.history = []  # Список объектов ходов
+        self.current_step = 0  # Текущий ход
+        self.current_step_obj = 0 # Ссылка на текущий объект хода
+        self.create_step()
 
-    # Информация о каждом ходе и методы ее изменения
-    def __init__(self, player):
-        # Создаем новый ход для переданного игрока
+    # Создание нового хода
+    def create_step(self):
         # Если ход добавляется не в конец истории (она отмотана) то вся последующая история сначала удаляется
-        if len(Steps.history) > Steps.current_step:
-            del(Steps.history[Steps.current_step:])
-        Steps.current_step += 1
-        self.number_step = Steps.current_step # Номер хода
-        self.try_number = 1 # Какая текущая попытка
-        self.try1 = 0 # Очки за бросок (выбитый сектор)
-        self.try2 = 0
-        self.try3 = 0
-        self.summa = 0 # Выбитая сумма. Если в эту попытку сумма зачислилась игроку, то тут та тумма иначе 0
-        self.player = player # Ссылка на объект игрока чей ход
-        Steps.history.append(self)
+        if len(self.history) > self.current_step:
+            del (self.history[self.current_step:])
+        self.current_step += 1
+        self.current_step_obj = self.Step(self.players.next_player(), self.current_step)
+        self.history.append(self.current_step_obj) # Создаем шаг
+        self.info_string() # Выводим информацию о ходе
+
+    # Вывод информационной строки о ходе. Игрок, № хода, сколько очков осталось
+    def info_string(self):
+        self.info_string_label['text'] = self.current_step_obj.player.get_name() \
+        + '      Ход ' + str(self.current_step) \
+        + '      Очков в игре ' + str(self.scores.get_points_left())
+        self.scores.for_cute()
+
+    # Рассчет и вывод подсказки (сектора, которые нужно выбить на пути к лучшему результату)
+    # def clue(self):
+        # Для начала вычисляем минимальную и максимальную суммы которые можно выбить на данном этапе
+        # min_summa = sum(self.current_step_obj.trys[:self.try_number-1]) + (4-self.try_number)
+        # max_summa = sum(self.current_step_obj.trys[:self.try_number - 1]) + (4 - self.try_number) * 20
+
+    class Step:
+        # Информация о каждом ходе и методы ее изменения
+        # Получает игрока и номер хода
+        def __init__(self, player, step):
+            # Создаем новый ход для переданного игрока
+            self.number_step = step # Номер хода
+            self.try_number = 1 # Какая текущая попытка
+            self.trys = [0, 0, 0] # Очки за бросоки (выбитый сектор)
+            self.summa = 0 # Выбитая сумма. Если в эту попытку сумма зачислилась игроку, то тут та тумма иначе 0
+            self.player = player # Ссылка на объект игрока чей ход
+
+
 
     # @classmethod
 
 class Scores:
     # Класс ведет счет очков, создает таблицу сумм и баллов и управляет ей через вложенный подкласс
     # Получает ссылку на поле подсказок и обновляет их
-    class ButtonScore():
+    class ButtonScore:
         # Вложенный класс создает кнопки сумм рисует их и управляет ими
         def __init__(self, root, x, y, summa, score):
-            self.activ = True  # Активна ли кнопка
+            self.activ = True  # Активна ли кнопка, False когда очки уже забрали
+            self.show = True # Временно скрыть при False, когда в текущий момент сумма не доступна
             self.x = x
             self.y = y
-            self.summa = summa
-            self.score = score
+            self.summa = summa # Суммы бросков дротиков
+            self.score = score # Очки за суммы
             self.root = root
             self.btn = Button(root, text=summa, font="Arial 10", width=5, relief=RIDGE)
             self.btn.place(x=x, y=y)
@@ -46,6 +78,7 @@ class Scores:
             if self.activ:
                 self.btn.place_forget()
                 self.activ = False
+                self.show = False
                 return self.score
             else:
                 return 0
@@ -53,6 +86,7 @@ class Scores:
         # Возвращяем сумму в таблицу и разрешаем ее показ. Возвращяет очки за нее
         def return_summ(self):
             self.activ = True
+            self.show = True
             self.btn.place(x=self.x, y=self.y)
             return self.score
 
@@ -60,11 +94,13 @@ class Scores:
         def hide_summ(self):
             if self.activ:
                 self.btn.place_forget()
+                self.show = False
 
         # Возвращяем сумму в таблицу (временно спрятанную), если она активна
         def show_summ(self):
             if self.activ:
                 self.btn.place(x=self.x, y=self.y)
+                self.show = True
 
         # Подсвечиваем сумму
         def light_summ(self):
@@ -103,6 +139,18 @@ class Scores:
                 self.all_summ[i] = self.ButtonScore(root, x, y, i, key)
             y += 28
 
+    # Посчитать сколько очков еще осталось не выбитых
+    def get_points_left(self):
+        return sum(i.score for i in self.all_summ.values() if i.activ)
+
+    # Возвращяет список секторов которые нужно выбить на данном этапе для достижения лучшего результата
+    # Принимает за какое количество бросков
+    def for_cute(self):
+        best_result = max(key for key, summ in self.all_summ.items())
+        print(self.all_summ)
+    # На каждом этапе доступны только те суммы которые игрок еще может выбить,
+    # находим те, которые дают большее количество очков
+    # и находим сектора
 
 class Player():
     # Игрок
@@ -146,33 +194,21 @@ class Players():
             n.place(x=space_x//8+450, y=50+i*spase_y)
             s.place(x=500+space_x, y=50+i*spase_y)
             self.string_table.append((n, s)) # В каждой строке имя и очки
-        self.current_player = 0 # Текущий игрок
+        self.current_player = len(self.players) - 1 # Текущий игрок, ставим последнего, чтоб при первом запросе получить 1
         self.print_table()
-        self.select_player(self.players[0]) # На старте игроки стоят по очереди ходов, выделяем первого
-
-    # Возвращяет объект текущего игрока
-    def get_player(self):
-        return self.players[self.current_player]
 
     # Сделать текущим следующего игрока и вернуть его
     def next_player(self):
         self.current_player += 1
         if self.current_player == len(self.players):
             self.current_player = 0
-        self.select_player(self.players[self.current_player]) # Подсвечиваем текущего игрока
         return self.players[self.current_player]
-
-    # Выделяем цветом указанного игрока (в турнирной таблице он может стоять в любой позиции)
-    def select_player(self, player):
-        act = self.players.index(player) # Индекс игрока в массиве, это его место в таблице
-        self.string_table[act][0]['fg'] = 'red'  # В списке кортежей label обхекты, по индексу 0 - имя, его красим
 
     # Вывод турнирной таблицы
     def print_table(self):
         self.players.sort(key=lambda x: x.score, reverse=True) # Сортируем массив игроков по очкам
         for i, st in enumerate(self.string_table):
             st[0]['text'] = self.players[i].get_name()
-            st[0]['fg'] = 'black' # Все выводятся черным цветом
             st[1]['text'] = self.players[i].get_score()
 
 def word1_press(event):
@@ -219,12 +255,11 @@ def clear(event):
 root = Tk()
 root.attributes("-fullscreen", True)
 
-players = Players(root) # Создаем объекты игроков и турнирную таблицу
-player = players.get_player() # Получаем текущего игрока (первого)
-
 scores = Scores() # Создаем объект управляющий очками, таблицей и подсказкой
 
-step = Steps(player) # Создаем первый ход и передаем ему первого игрока
+players = Players(root) # Создаем объекты игроков и турнирную таблицу
+
+step = Steps(scores, players, root) # создаем первый ход, передаем ему объекты очков и игроков и объект экрана
 
 
 
@@ -245,9 +280,9 @@ score3 = StringVar()
 word1 = Entry(root, width=3, font="Helvetica 30", textvariable=score1)
 word2 = Entry(root, width=3, font="Helvetica 30", textvariable=score2)
 word3 = Entry(root, width=3, font="Helvetica 30", textvariable=score3)
-word1.place(x=700, y=500)
-word2.place(x=800, y=500)
-word3.place(x=900, y=500)
+word1.place(x=700, y=550)
+word2.place(x=800, y=550)
+word3.place(x=900, y=550)
 word1.bind('<Return>', word1_press)
 word2.bind('<Return>', word2_press)
 word3.bind('<Return>', word3_press)
