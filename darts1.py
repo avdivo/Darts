@@ -12,8 +12,12 @@ class Steps:
         self.scores = scores
         self.players = players
         self.root = root
-        self.info_string_label = Label(root, text='Строка', font=f'Helvetica 25', width=40, anchor="w")
+        self.info_string_label = Label(root, text='', font=f'Helvetica 25', width=40, anchor="w")
         self.info_string_label.place(x=450, y=470)
+        self.labl1 = Label(root, text='Лучшие сектора:', font=f'Helvetica 20', width=80, anchor="w")
+        self.labl1.place(x=450, y=630)
+        self.cute_string_label = Label(root, text='', font=f'Helvetica 20', width=80, anchor="w")
+        self.cute_string_label.place(x=450, y=680)
         self.history = []  # Список объектов ходов
         self.current_step = 0  # Текущий ход
         self.current_step_obj = 0 # Ссылка на текущий объект хода
@@ -27,20 +31,29 @@ class Steps:
         self.current_step += 1
         self.current_step_obj = self.Step(self.players.next_player(), self.current_step)
         self.history.append(self.current_step_obj) # Создаем шаг
+        self.for_show_hide_score()
         self.info_string() # Выводим информацию о ходе
+        self.print_cute() # Выводим подсказку
 
-    # Вывод информационной строки о ходе. Игрок, № хода, сколько очков осталось
+    # Вывод информационной строки о ходе. Игрок, № хода, сколько очков осталось и подсказки
     def info_string(self):
         self.info_string_label['text'] = self.current_step_obj.player.get_name() \
         + '      Ход ' + str(self.current_step) \
         + '      Очков в игре ' + str(self.scores.get_points_left())
-        self.scores.for_cute()
 
-    # Рассчет и вывод подсказки (сектора, которые нужно выбить на пути к лучшему результату)
-    # def clue(self):
-        # Для начала вычисляем минимальную и максимальную суммы которые можно выбить на данном этапе
-        # min_summa = sum(self.current_step_obj.trys[:self.try_number-1]) + (4-self.try_number)
-        # max_summa = sum(self.current_step_obj.trys[:self.try_number - 1]) + (4 - self.try_number) * 20
+    # Вывод подсказки, ее запрашиваем в классе Score
+    def print_cute(self):
+        score = sum(self.current_step_obj.trys[:self.current_step_obj.try_number-1]) # Сколько очков уже набрано
+        trys = 4 - self.current_step_obj.try_number # Сколько попыток осталось
+        string = [str(i) for i in self.scores.for_cute(trys, score)]
+        self.cute_string_label['text'] = ', '.join(string)
+
+    # Подготовка к вызову функции скрывающей недоступные на данном этапе суммы в таблице и показывающей доступные
+    def for_show_hide_score(self):
+        # Вычисляем минимальную и максимальную суммы которые можно выбить, с учетом уже выбитого
+        min_summa = sum(self.current_step_obj.trys[:self.current_step_obj.try_number-1]) + (4-self.current_step_obj.try_number)
+        max_summa = sum(self.current_step_obj.trys[:self.current_step_obj.try_number - 1]) + (4 - self.current_step_obj.try_number) * 20
+        self.scores.show_hide_score(min_summa, max_summa) # Вызываем метод
 
     class Step:
         # Информация о каждом ходе и методы ее изменения
@@ -144,13 +157,42 @@ class Scores:
         return sum(i.score for i in self.all_summ.values() if i.activ)
 
     # Возвращяет список секторов которые нужно выбить на данном этапе для достижения лучшего результата
-    # Принимает за какое количество бросков
-    def for_cute(self):
-        best_result = max(key for key, summ in self.all_summ.items())
-        print(self.all_summ)
-    # На каждом этапе доступны только те суммы которые игрок еще может выбить,
-    # находим те, которые дают большее количество очков
-    # и находим сектора
+    # получает за какое количество бросков и сколько очков уже выбито
+    def for_cute(self, shot, score_now):
+        # Находим список видимых сумм с лучшим результатом по очкам
+        # но не полных сумм, а уменьшиных на уже набранную сумму
+        max_score = 0
+        list_sum = []
+        for key, button in self.all_summ.items():
+            if button.show:
+                if max_score == button.score:
+                    list_sum.append(key - score_now)
+                elif max_score < button.score:
+                    list_sum.clear()
+                    list_sum.append(key - score_now)
+                    max_score = button.score
+        # Для каждой суммы находим все комбинации ее получения 1, 2 или 3 бросками в зависимости от этапа
+        # В комбинациях нас интересуют только сектора (очки за 1 бросок)
+        # составляем список из этих цифр, каждая по 1 разу
+        best_sectors = set()
+        # Получаем список кортежей, каждый длиной от 1 до 3 элементов, в зависимости от количества ходов
+        all_sectors = list(range(1, 21))
+        for res in list_sum:
+            that = [i for i in itertools.combinations_with_replacement(all_sectors, shot) if sum(i) == res]
+            for i in that:
+                # Записываем каждый кортеж в set чтобы убрать повторы
+                best_sectors = best_sectors | set(i)
+        return list(best_sectors)
+
+    # Скрывает недоступные суммы в таблице и отображаем доступные
+    # Все что меньше минимальной и больше максимальной скрываем
+    def show_hide_score(self, min_summa, max_summa):
+        for button in self.all_summ.values():
+            if button.activ:
+                if button.summa < min_summa or button.summa > max_summa:
+                    button.hide_summ()
+                else:
+                    button.show_summ()
 
 class Player():
     # Игрок
