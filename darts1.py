@@ -15,9 +15,9 @@ class Steps:
         self.info_string_label = Label(root, text='', font=f'Helvetica 25', width=40, anchor="w")
         self.info_string_label.place(x=450, y=470)
         self.labl1 = Label(root, text='Лучшие сектора:', font=f'Helvetica 20', width=80, anchor="w")
-        self.labl1.place(x=450, y=630)
+        self.labl1.place(x=450, y=650)
         self.cute_string_label = Label(root, text='', font=f'Helvetica 20', width=80, anchor="w")
-        self.cute_string_label.place(x=450, y=680)
+        self.cute_string_label.place(x=450, y=690)
         self.history = []  # Список объектов ходов
         self.current_step = 0  # Текущий ход
         self.current_step_obj = 0 # Ссылка на текущий объект хода
@@ -31,7 +31,7 @@ class Steps:
         self.current_step += 1
         self.current_step_obj = self.Step(self.players.next_player(), self.current_step)
         self.history.append(self.current_step_obj) # Создаем шаг
-        self.for_show_hide_score()
+        self.for_show_hide_score() # Изменение таблицы очков
         self.info_string() # Выводим информацию о ходе
         self.print_cute() # Выводим подсказку
 
@@ -54,6 +54,17 @@ class Steps:
         min_summa = sum(self.current_step_obj.trys[:self.current_step_obj.try_number-1]) + (4-self.current_step_obj.try_number)
         max_summa = sum(self.current_step_obj.trys[:self.current_step_obj.try_number - 1]) + (4 - self.current_step_obj.try_number) * 20
         self.scores.show_hide_score(min_summa, max_summa) # Вызываем метод
+
+    # Смена попытки. Аргументы - сколько записать очков на текущую попытку, номер попытки который нужно установить
+    def try_change(self, score,  num):
+        self.current_step_obj.trys[self.current_step_obj.try_number-1] = score
+        self.current_step_obj.try_number = num
+        self.for_show_hide_score()  # Изменение таблицы очков
+        self.print_cute()  # Выводим подсказку
+
+    # Вернуть номер этапа (попытки)
+    def try_number(self):
+        return self.current_step_obj.try_number
 
     class Step:
         # Информация о каждом ходе и методы ее изменения
@@ -253,45 +264,74 @@ class Players():
             st[0]['text'] = self.players[i].get_name()
             st[1]['text'] = self.players[i].get_score()
 
-def word1_press(event):
-    print('Ok 1')
-    word2.focus()
-    word2.select_range(0, END)
+# # Нажатие клавишь в полях ввода
+# def word1_press(event):
+#     word2.focus()
+#     word2.select_range(0, END)
+#
+# def word2_press(event):
+#     word3.focus()
+#     word3.select_range(0, END)
+#
+# def word3_press(event):
+#     global who_step
+#     sc = int(score1.get()) + int(score2.get()) + int(score3.get())
+#     if sc > 2 and sc < 61:
+#         new = all_obj[sc].get_score()
+#         if who_step == 0:
+#             sc1['text'] = int(sc1['text']) + new
+#         else:
+#             sc2['text'] = int(sc2['text']) + new
+#     who_step = not who_step
+#     who['text'] = players[who_step]
+#     score1.set(0)
+#     score2.set(0)
+#     score3.set(0)
+#     word1.focus()
+#     word1.select_range(0, END)
+#
+# def clear(event):
+#     global who_step
+#     who_step = not who_step
+#     who['text'] = players[who_step]
+#     score1.set(0)
+#     score2.set(0)
+#     score3.set(0)
+#     word1.focus()
+#     word1.select_range(0, END)
 
+# Получение фокуса полями ввода
+def focus_in_word(event, num):
+    if num > 0:
+        if score[num-1].get() == '0':
+            word[num-1].focus()
+            word[num-1].select_range(0, END)
+            return
+    step.try_change(0, num+1)
 
-def word2_press(event):
-    word3.focus()
-    word3.select_range(0, END)
+# Нажатие клавишь в полях ввода
+def word_press(event, num):
+    try:
+        text = int(score[num].get())
+    except:
+        score[num].delete(0, "end")
+        score[num].insert(0, '0')
+        word[num].select_range(0, END)
+        return
+    if text > 20:
+        score[num].delete(0, "end")
+        score[num].insert(0, '0')
+        word[num].select_range(0, END)
+        return
+    if text > 2:
+        word[num + 1].focus()
+        word[num + 1].select_range(0, END)
 
+    print(event.keycode)
 
-
-def word3_press(event):
-    global who_step
-    sc = int(score1.get()) + int(score2.get()) + int(score3.get())
-    if sc > 2 and sc < 61:
-        new = all_obj[sc].get_score()
-        if who_step == 0:
-            sc1['text'] = int(sc1['text']) + new
-        else:
-            sc2['text'] = int(sc2['text']) + new
-    who_step = not who_step
-    who['text'] = players[who_step]
-    score1.set(0)
-    score2.set(0)
-    score3.set(0)
-    word1.focus()
-    word1.select_range(0, END)
-
-def clear(event):
-    global who_step
-    who_step = not who_step
-    who['text'] = players[who_step]
-    score1.set(0)
-    score2.set(0)
-    score3.set(0)
-    word1.focus()
-    word1.select_range(0, END)
-
+def button_digit(num):
+    score[step.try_number()-1].delete(0, "end")
+    score[step.try_number()-1].insert(0, num)
 
 
 root = Tk()
@@ -314,31 +354,42 @@ step = Steps(scores, players, root) # создаем первый ход, пер
 # sc2 = Label(root, text=0, font=f'Helvetica 50', width=10)
 # sc1.place(x=530, y=200)
 # sc2.place(x=830, y=200)
+score = word = [0, 0, 0]
+score[0] = StringVar() # Переменная для поля ввода
+score[1] = StringVar()
+score[2] = StringVar()
+word[0] = Entry(root, width=2, font="Helvetica 40", textvariable=score[0])
+word[1] = Entry(root, width=2, font="Helvetica 40", textvariable=score[1])
+word[2] = Entry(root, width=2, font="Helvetica 40", textvariable=score[2])
+word[0].place(x=450, y=550)
+word[1].place(x=530, y=550)
+word[2].place(x=610, y=550)
+word[0].bind('<FocusIn>', lambda event, x=0: focus_in_word(event, x))
+word[1].bind('<FocusIn>', lambda event, x=1: focus_in_word(event, x))
+word[2].bind('<FocusIn>', lambda event, x=2: focus_in_word(event, x))
+word[0].bind('<KeyRelease >', lambda event, x=0: word_press(event, x))
+word[1].bind('<KeyRelease >', lambda event, x=1: word_press(event, x))
+word[2].bind('<KeyRelease >', lambda event, x=2: word_press(event, x))
+# root.bind("<Escape>", clear)
 
-score1 = StringVar() # Переменная для поля ввода
-score2 = StringVar()
-score3 = StringVar()
 
-word1 = Entry(root, width=3, font="Helvetica 30", textvariable=score1)
-word2 = Entry(root, width=3, font="Helvetica 30", textvariable=score2)
-word3 = Entry(root, width=3, font="Helvetica 30", textvariable=score3)
-word1.place(x=700, y=550)
-word2.place(x=800, y=550)
-word3.place(x=900, y=550)
-word1.bind('<Return>', word1_press)
-word2.bind('<Return>', word2_press)
-word3.bind('<Return>', word3_press)
-root.bind("<Escape>", clear)
+score[0].insert(0, '0')
+score[1].insert(0, '0')
+score[2].insert(0, '0')
+# word1.focus()
+# word1.select_range(0, END)
 
-score1.set(0)
-score2.set(0)
-score3.set(0)
-word1.focus()
-word1.select_range(0, END)
 
-# who = Label(root, text=players[who_step], font=f'Helvetica 30', width=10)
-# who.place(x=700, y=400)
 
+
+# Кнопки для быстрого ввода
+x = 700
+y = 535
+for i in range(1, 11):
+    Button(text=str(i), command=lambda i=i: button_digit(i), width=3, font="Helvetica 18").place(x=x, y=y)
+    Button(text=str(i+10), command=lambda i=i+10: button_digit(i), width=3, font="Helvetica 18").place(x=x, y=y+54)
+    x += 55
+Button(text=str('Ok'), command=lambda i=i: hi(i), width=6, height=3, font="Helvetica 18").place(x=x, y=y)
 
 
 root.mainloop()
