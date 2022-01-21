@@ -56,15 +56,23 @@ class Steps:
         self.scores.show_hide_score(min_summa, max_summa) # Вызываем метод
 
     # Смена попытки. Аргументы - сколько записать очков на текущую попытку, номер попытки который нужно установить
-    def try_change(self, score,  num):
+    def try_change(self, score, num):
         self.current_step_obj.trys[self.current_step_obj.try_number-1] = score
+        if self.current_step_obj.try_number == num:
+            print('Hf,jnftn')
+            return
+        # Это выполняется если меняется этап (попытка)
         self.current_step_obj.try_number = num
-        self.for_show_hide_score()  # Изменение таблицы очков
         self.print_cute()  # Выводим подсказку
+        self.for_show_hide_score()  # Изменение таблицы очков
 
     # Вернуть номер этапа (попытки)
     def try_number(self):
         return self.current_step_obj.try_number
+
+    # Набранная сумма
+    def summa(self):
+        return sum(self.current_step_obj.trys)
 
     class Step:
         # Информация о каждом ходе и методы ее изменения
@@ -138,6 +146,7 @@ class Scores:
 
     # Методы класса Scores
     def __init__(self):
+        self.light_summ = 0 # Объект который подсвечен (клеточка суммы выделена красным)
         all_sectors = list(range(1, 21))
         all_res_dict = dict()
         for res in range(3, 61):
@@ -204,6 +213,19 @@ class Scores:
                     button.hide_summ()
                 else:
                     button.show_summ()
+
+    # Включает подсветкой суммы
+    def light_on(self, summ):
+        if self.all_summ[summ].show:
+            self.light_summ = self.all_summ[summ]
+            self.light_summ.light_summ()
+
+    # Гасит подсветкой суммы
+    def light_off(self):
+        if self.light_summ != 0:
+            # Гасим засвеченную сумму
+            self.light_summ.normal_summ()
+            self.light_summ = 0
 
 class Player():
     # Игрок
@@ -302,37 +324,99 @@ class Players():
 
 # Получение фокуса полями ввода
 def focus_in_word(event, num):
+    # Нельзя перемещяться вправо, если левые поля еще нулевые
     if num > 0:
-        if score[num-1].get() == '0':
+        if int(score[num-1].get()) == 0:
             word[num-1].focus()
             word[num-1].select_range(0, END)
             return
-    step.try_change(0, num+1)
+        elif num == 2:
+            if int(score[0].get()) == 0:
+                word[0].focus()
+                word[0].select_range(0, END)
+                return
+    # Переход одобрен
+    word[num].select_range(0, END) # Выделяем данные в поле
+    step.try_change(int(score[step.try_number()-1].get()), num+1) # Заполняем информацию о броске и переходим к следующему
+    scores.light_off() # Гасим подсветку при переходах
+
 
 # Нажатие клавишь в полях ввода
 def word_press(event, num):
+    if event.keycode == 8:
+        score[num].delete(0, "end")
+        score[num].insert(0, '0')
+        word[num].select_range(0, END)
+        event.keycode = 37
+    # Запрещяем ввод не цифр
+    if event.keycode == 39:
+        # Стрелка вправо, действует как Enter для 1 и 2 полей, на 3 не работает
+        if num < 2:
+            enter()
+        return
+    if event.keycode == 37:
+        # Стрелка влево
+        if num > 0:
+            word[num - 1].focus()
+            word[num - 1].select_range(0, END)
+            step.try_change(int(score[num].get()), num + 1)  # Заполняем информацию о броске и переходим к следующему
+        return
     try:
+        # Должны быть только цифры
         text = int(score[num].get())
     except:
         score[num].delete(0, "end")
         score[num].insert(0, '0')
         word[num].select_range(0, END)
-        return
-    if text > 20:
+        text = 0
+    if text > 20 or len(score[num].get()) > 2:
+        # Максимальное значение сектора 20, длина цифры 2 символа, ограничиваем
         score[num].delete(0, "end")
         score[num].insert(0, '0')
         word[num].select_range(0, END)
+        text = 0
+    if num < 2:
+        # В старшем разряде не может быть цифры больше 2, поэтому переходим к следующему полю
+        if text > 2:
+            next_try(num)
+    else:
+        # Сумма третьей ячейки заполняется при наборе
+        step.try_change(text, num)  # Заполняем информацию о броске и остаемся
+        scores.light_on(step.summa()) # Передаем набранную сумму чтобы засветить ее
+
+    if event.keycode == 13:
+        enter()
         return
-    if text > 2:
-        word[num + 1].focus()
-        word[num + 1].select_range(0, END)
 
-    print(event.keycode)
 
-def button_digit(num):
-    score[step.try_number()-1].delete(0, "end")
-    score[step.try_number()-1].insert(0, num)
 
+
+
+def button_digit(sector):
+    num = step.try_number()-1 # Номер поля которое заполняется
+    score[num].delete(0, "end")
+    score[num].insert(0, sector)
+    if num < 2:
+        next_try(num)
+    else:
+        # Сумма третьей ячейки заполняется при наборе
+        step.try_change(sector, num)  # Заполняем информацию о броске и остаемся
+        scores.light_on(step.summa())  # Передаем набранную сумму чтобы засветить ее
+
+# Переход на правое поле (1 или 2), когда левое (0 или 1) правильно заполнено
+def next_try(num):
+    word[num + 1].focus()
+    word[num + 1].select_range(0, END)
+    step.try_change(int(score[num].get()), num + 1)  # Заполняем информацию о броске и переходим к следующему
+
+# Нажатие Enter или кнопки Ок
+def enter():
+    num = step.try_number() - 1  # Номер поля на котором нажат Enter
+    if num < 2:
+        next_try(num) # Переход к следующему полю
+    else:
+        # Завершение хода игрока, переход к следующему
+        pass
 
 root = Tk()
 root.attributes("-fullscreen", True)
@@ -376,8 +460,8 @@ word[2].bind('<KeyRelease >', lambda event, x=2: word_press(event, x))
 score[0].insert(0, '0')
 score[1].insert(0, '0')
 score[2].insert(0, '0')
-# word1.focus()
-# word1.select_range(0, END)
+score[0].focus()
+score[0].select_range(0, END)
 
 
 
@@ -389,7 +473,7 @@ for i in range(1, 11):
     Button(text=str(i), command=lambda i=i: button_digit(i), width=3, font="Helvetica 18").place(x=x, y=y)
     Button(text=str(i+10), command=lambda i=i+10: button_digit(i), width=3, font="Helvetica 18").place(x=x, y=y+54)
     x += 55
-Button(text=str('Ok'), command=lambda i=i: hi(i), width=6, height=3, font="Helvetica 18").place(x=x, y=y)
+Button(text=str('Ok'), command=enter, width=6, height=3, font="Helvetica 18").place(x=x, y=y)
 
 
 root.mainloop()
