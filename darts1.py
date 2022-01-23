@@ -1,5 +1,6 @@
 import time
 from tkinter import *
+import tkinter.messagebox as mb
 import itertools
 import random
 import sys, os
@@ -15,18 +16,97 @@ class Steps:
         self.info_string_label = Label(root, text='', font=f'Helvetica 25', width=40, anchor="w")
         self.info_string_label.place(x=450, y=470)
         self.labl1 = Label(root, text='Лучшие сектора:', font=f'Helvetica 20', width=80, anchor="w")
-        self.labl1.place(x=450, y=650)
+        self.labl1.place(x=450, y=655)
         self.cute_string_label = Label(root, text='', font=f'Helvetica 20', width=80, anchor="w")
-        self.cute_string_label.place(x=450, y=690)
+        self.cute_string_label.place(x=450, y=695)
         self.history = []  # Список объектов ходов
         self.current_step = 0  # Текущий ход
         self.current_step_obj = 0 # Ссылка на текущий объект хода
         self.create_step()
 
+    class Step:
+        # Информация о каждом ходе и методы ее изменения
+        # Получает игрока и номер хода
+        def __init__(self, player, step):
+            # Создаем новый ход для переданного игрока
+            self.number_step = step # Номер хода
+            self.try_number = 0 # Какая текущая попытка
+            self.trys = [0, 0, 0] # Очки за бросоки (выбитый сектор)
+            self.summa = 0 # Выбитая сумма. Если в эту попытку сумма зачислилась игроку, то тут та тумма иначе 0
+            self.player = player # Ссылка на объект игрока чей ход
+
+    # Передача хода следующему игроку
+    def next_step(self):
+        result = self.scores.get_result() # Получаем результаты бросков сделанных игроком (объект ButtonScore)
+        if result:
+            self.current_step_obj.summa = result.summa # Запоминаем выбитую сумму
+            self.current_step_obj.player.score += result.score # Записываем очки игроку
+        else:
+            self.current_step_obj.summa = 0 # Запоминаем выбитую сумму
+        self.create_step() # Создаем новый ход
+
+    # Запись пустого хода, пропуск хода (при промахе, по клавише esc)
+    def null_step(self):
+        self.current_step_obj.trys = [0, 0, 0]  # Запоминаем выбитую сумму
+
+    # Перемотка истории назад
+    def history_previous(self):
+        if self.current_step == 1:
+            return False # Переход не выполнен
+        self.current_step -= 1
+        self.current_step_obj = self.history[self.current_step-1] # Делаем предидущий шаг текущим
+        if self.current_step_obj.summa:
+            # Если сумма не 0 нужно ее восстановить и отнять
+            result = self.scores.cancel_result(self.current_step_obj.summa) # Получаем объект суммы (ButtonScore)
+            self.current_step_obj.player.score -= result.score # Отнимаем очки у игрока
+        self.players.set_current_player(self.current_step_obj.player) # Делаем игрока текущим и обновляем таблицу
+        self.current_step_obj.try_number = 2 if self.current_step_obj.trys[2] else 0 # Устанавливаем текущую попытку
+        self.for_show_hide_score() # Изменение таблицы очков
+        self.info_string() # Выводим информацию о ходе
+        self.print_cute() # Выводим подсказку
+        return self.current_step_obj
+
+    # Перемотка истории вперед
+    def history_next(self):
+        if self.current_step == len(self.history):
+            return False # Переход не выполнен, дошли до конца истории
+        if self.step_change():
+            mb.showwarning('Внимание', 'Результаты хода быле изменены. Необходимо сохранить ход, '
+                    'в этом случае дальнейшая история будет утеряна. Или вернуть старые результаты.')
+            return False  # Результаты были изменены, поэтому дальнейшая история должна быть удалена
+        if self.current_step_obj.summa:
+            # Если сумма не 0 нужно ее удалить из таблицы и прибавить игроку
+            result = self.scores.cancel_result(self.current_step_obj.summa) # Получаем объект суммы (ButtonScore)
+            self.current_step_obj.player.score += result.delete_summ() # Добавляем очки игроку и удаляем сумму из таблицы
+        self.current_step += 1
+        self.current_step_obj = self.history[self.current_step-1] # Делаем следующий шаг текущим
+        self.players.set_current_player(self.current_step_obj.player) # Делаем игрока текущим и обновляем таблицу
+        self.current_step_obj.try_number = 2 if self.current_step_obj.trys[2] else 0 # Устанавливаем текущую попытку
+        self.for_show_hide_score() # Изменение таблицы очков
+        self.info_string() # Выводим информацию о ходе
+        self.print_cute() # Выводим подсказку
+        return self.current_step_obj
+
+    # Если ход добавляется не в конец истории (она отмотана) вернет True
+    def step_end(self):
+        return len(self.history) > self.current_step
+
+    # Если результаты хода были изменены вернет True
+    def step_change(self):
+        summ = self.summa()
+        if summ != self.current_step_obj.summa:
+            # Данные были изменены или сумма не была записана, поскольку уже ранее была выбита (тогда там 0)
+            if self.current_step_obj.summa == 0:
+                # Если сумма и была 0, то возможно сейчас внесены изменения и сумму можно записать
+                return self.scores.available_summ(summ) # Сумма стала доступна для записи, значит считаем что ход был изменен
+            else:
+                return True
+        return False
+
     # Создание нового хода
     def create_step(self):
         # Если ход добавляется не в конец истории (она отмотана) то вся последующая история сначала удаляется
-        if len(self.history) > self.current_step:
+        if self.step_end():
             del (self.history[self.current_step:])
         self.current_step += 1
         self.current_step_obj = self.Step(self.players.next_player(), self.current_step)
@@ -43,51 +123,46 @@ class Steps:
 
     # Вывод подсказки, ее запрашиваем в классе Score
     def print_cute(self):
-        score = sum(self.current_step_obj.trys[:self.current_step_obj.try_number-1]) # Сколько очков уже набрано
-        trys = 4 - self.current_step_obj.try_number # Сколько попыток осталось
+        score = sum(self.current_step_obj.trys[:self.current_step_obj.try_number]) # Сколько очков уже набрано
+        trys = 3 - self.current_step_obj.try_number # Сколько попыток осталось
         string = [str(i) for i in self.scores.for_cute(trys, score)]
         self.cute_string_label['text'] = ', '.join(string)
 
     # Подготовка к вызову функции скрывающей недоступные на данном этапе суммы в таблице и показывающей доступные
     def for_show_hide_score(self):
-        # Вычисляем минимальную и максимальную суммы которые можно выбить, с учетом уже выбитого
-        min_summa = sum(self.current_step_obj.trys[:self.current_step_obj.try_number-1]) + (4-self.current_step_obj.try_number)
-        max_summa = sum(self.current_step_obj.trys[:self.current_step_obj.try_number - 1]) + (4 - self.current_step_obj.try_number) * 20
+        if self.current_step_obj.try_number == 2 and self.current_step_obj.trys[2] > 0:
+            # Для третьей попытки в таблице оставляем одну выбитую цифру, когда начат ввод данных
+            min_summa = max_summa = sum(self.current_step_obj.trys)
+        else:
+            # Вычисляем минимальную и максимальную суммы которые можно выбить, с учетом уже выбитого
+            min_summa = sum(self.current_step_obj.trys[:self.current_step_obj.try_number]) + (3-self.current_step_obj.try_number)
+            max_summa = sum(self.current_step_obj.trys[:self.current_step_obj.try_number]) + (3 - self.current_step_obj.try_number) * 20
         self.scores.show_hide_score(min_summa, max_summa) # Вызываем метод
 
-    # Смена попытки. Аргументы - сколько записать очков на текущую попытку, номер попытки который нужно установить
-    def try_change(self, score, num):
-        self.current_step_obj.trys[self.current_step_obj.try_number-1] = score
-        if self.current_step_obj.try_number == num:
-            print('Hf,jnftn')
-            return
-        # Это выполняется если меняется этап (попытка)
-        self.current_step_obj.try_number = num
-        self.print_cute()  # Выводим подсказку
+    # Запись очков в текущую попытку
+    def set_try_score(self, score):
+        self.current_step_obj.trys[self.current_step_obj.try_number] = score
         self.for_show_hide_score()  # Изменение таблицы очков
+        self.print_cute()
+
+    # Смена попытки. Аргумент - номер попытки который нужно установить. Обновляет таблицу очков
+    def try_change(self, num):
+        self.current_step_obj.try_number = num
+        self.for_show_hide_score()  # Изменение таблицы очков
+        self.print_cute()  # Выводим подсказку
 
     # Вернуть номер этапа (попытки)
-    def try_number(self):
+    def get_try_number(self):
         return self.current_step_obj.try_number
+
+    # Вернуть Очки на текущей попытке
+    def get_try_summa(self):
+        return self.current_step_obj.trys[self.current_step_obj.try_number]
 
     # Набранная сумма
     def summa(self):
         return sum(self.current_step_obj.trys)
 
-    class Step:
-        # Информация о каждом ходе и методы ее изменения
-        # Получает игрока и номер хода
-        def __init__(self, player, step):
-            # Создаем новый ход для переданного игрока
-            self.number_step = step # Номер хода
-            self.try_number = 1 # Какая текущая попытка
-            self.trys = [0, 0, 0] # Очки за бросоки (выбитый сектор)
-            self.summa = 0 # Выбитая сумма. Если в эту попытку сумма зачислилась игроку, то тут та тумма иначе 0
-            self.player = player # Ссылка на объект игрока чей ход
-
-
-
-    # @classmethod
 
 class Scores:
     # Класс ведет счет очков, создает таблицу сумм и баллов и управляет ей через вложенный подкласс
@@ -133,16 +208,6 @@ class Scores:
             if self.activ:
                 self.btn.place(x=self.x, y=self.y)
                 self.show = True
-
-        # Подсвечиваем сумму
-        def light_summ(self):
-            if self.activ:
-                self.btn['background'] = 'red'
-
-        # Убираем подсветку с суммы
-        def normal_summ(self):
-            if self.activ:
-                self.btn['background'] = root['background']
 
     # Методы класса Scores
     def __init__(self):
@@ -214,18 +279,26 @@ class Scores:
                 else:
                     button.show_summ()
 
-    # Включает подсветкой суммы
-    def light_on(self, summ):
-        if self.all_summ[summ].show:
-            self.light_summ = self.all_summ[summ]
-            self.light_summ.light_summ()
+    # Находит сумму которая не скрыта и возвращяет этот объект, если его нет вернет 0
+    def get_result(self):
+        counter = result = 0
+        for button in self.all_summ.values():
+            if button.show:
+                counter += 1
+                if counter > 1:
+                    return 0
+                result = button
+                result.delete_summ() # Сумма выбита, убираем ее из таблицы
+        return result
 
-    # Гасит подсветкой суммы
-    def light_off(self):
-        if self.light_summ != 0:
-            # Гасим засвеченную сумму
-            self.light_summ.normal_summ()
-            self.light_summ = 0
+    # Доступна ли сумма для записи True, если да
+    def available_summ(self, summ):
+        return self.all_summ[summ].activ
+
+    # Восстанавливаем удаленную из таблицы сумму и возвращяем этот объект
+    def cancel_result(self, summ):
+        self.all_summ[summ].return_summ() # Восстанавливаем
+        return self.all_summ[summ]
 
 class Player():
     # Игрок
@@ -242,8 +315,6 @@ class Player():
     def get_score(self):
         return self.score
 
-    def __str__(self):
-        return f'Номер: {self.number}\nИмя: {self.name}\nОчки: {self.score}'
 
 class Players():
     # Класс для управления игроками и их очками
@@ -270,96 +341,65 @@ class Players():
             s.place(x=500+space_x, y=50+i*spase_y)
             self.string_table.append((n, s)) # В каждой строке имя и очки
         self.current_player = len(self.players) - 1 # Текущий игрок, ставим последнего, чтоб при первом запросе получить 1
-        self.print_table()
 
     # Сделать текущим следующего игрока и вернуть его
     def next_player(self):
         self.current_player += 1
         if self.current_player == len(self.players):
             self.current_player = 0
+        self.print_table() # Обновляем турнирную таблицу
         return self.players[self.current_player]
+
+    # Сделать текущим переданного игрока и обновить турнирную таблицу
+    def set_current_player(self, player):
+        self.current_player = player.number
+        self.print_table() # Обновляем турнирную таблицу
 
     # Вывод турнирной таблицы
     def print_table(self):
-        self.players.sort(key=lambda x: x.score, reverse=True) # Сортируем массив игроков по очкам
+        players = self.players.copy()
+        players.sort(key=lambda x: x.score, reverse=True) # Сортируем массив игроков по очкам
         for i, st in enumerate(self.string_table):
-            st[0]['text'] = self.players[i].get_name()
-            st[1]['text'] = self.players[i].get_score()
+            st[0]['text'] = players[i].get_name()
+            st[1]['text'] = players[i].get_score()
 
-# # Нажатие клавишь в полях ввода
-# def word1_press(event):
-#     word2.focus()
-#     word2.select_range(0, END)
-#
-# def word2_press(event):
-#     word3.focus()
-#     word3.select_range(0, END)
-#
-# def word3_press(event):
-#     global who_step
-#     sc = int(score1.get()) + int(score2.get()) + int(score3.get())
-#     if sc > 2 and sc < 61:
-#         new = all_obj[sc].get_score()
-#         if who_step == 0:
-#             sc1['text'] = int(sc1['text']) + new
-#         else:
-#             sc2['text'] = int(sc2['text']) + new
-#     who_step = not who_step
-#     who['text'] = players[who_step]
-#     score1.set(0)
-#     score2.set(0)
-#     score3.set(0)
-#     word1.focus()
-#     word1.select_range(0, END)
-#
-# def clear(event):
-#     global who_step
-#     who_step = not who_step
-#     who['text'] = players[who_step]
-#     score1.set(0)
-#     score2.set(0)
-#     score3.set(0)
-#     word1.focus()
-#     word1.select_range(0, END)
 
-# Получение фокуса полями ввода
+# Получение фокуса полями ввода, запрещает перемещение вправо, если слева остается нулевое поле
+# При удачном переходе запрашивает изменение попытки и таблицы очков
 def focus_in_word(event, num):
-    # Нельзя перемещяться вправо, если левые поля еще нулевые
     if num > 0:
         if int(score[num-1].get()) == 0:
             word[num-1].focus()
-            word[num-1].select_range(0, END)
             return
         elif num == 2:
             if int(score[0].get()) == 0:
                 word[0].focus()
-                word[0].select_range(0, END)
                 return
     # Переход одобрен
     word[num].select_range(0, END) # Выделяем данные в поле
-    step.try_change(int(score[step.try_number()-1].get()), num+1) # Заполняем информацию о броске и переходим к следующему
-    scores.light_off() # Гасим подсветку при переходах
-
+    step.try_change(num) # Меняем попытку
 
 # Нажатие клавишь в полях ввода
 def word_press(event, num):
+    if (event.state & 0x4) != 0:
+        return # Не допускаем обработку клавишь с нажатым CTRL
     if event.keycode == 8:
-        score[num].delete(0, "end")
-        score[num].insert(0, '0')
-        word[num].select_range(0, END)
-        event.keycode = 37
-    # Запрещяем ввод не цифр
+        if step.get_try_summa() != 0:
+            score[num].delete(0, "end")
+            score[num].insert(0, '0')
+            word[num].select_range(0, END)
+        else:
+            score[num].delete(0, "end")
+            score[num].insert(0, '0')
+            previous_try()
+            return
     if event.keycode == 39:
-        # Стрелка вправо, действует как Enter для 1 и 2 полей, на 3 не работает
-        if num < 2:
-            enter()
+        # Стрелка вправо
+        next_try()
         return
     if event.keycode == 37:
         # Стрелка влево
-        if num > 0:
-            word[num - 1].focus()
-            word[num - 1].select_range(0, END)
-            step.try_change(int(score[num].get()), num + 1)  # Заполняем информацию о броске и переходим к следующему
+        previous_try()
         return
     try:
         # Должны быть только цифры
@@ -375,48 +415,110 @@ def word_press(event, num):
         score[num].insert(0, '0')
         word[num].select_range(0, END)
         text = 0
+    step.set_try_score(text) # Записываем очки хода
+    all_score_labl['text'] = f'Итого: {step.summa()}' # Показываем выбитую сумму
     if num < 2:
         # В старшем разряде не может быть цифры больше 2, поэтому переходим к следующему полю
         if text > 2:
-            next_try(num)
-    else:
-        # Сумма третьей ячейки заполняется при наборе
-        step.try_change(text, num)  # Заполняем информацию о броске и остаемся
-        scores.light_on(step.summa()) # Передаем набранную сумму чтобы засветить ее
-
+            next_try()
+    # Enter
     if event.keycode == 13:
         enter()
         return
 
-
-
-
-
+# Нажатие графических кнопок
 def button_digit(sector):
-    num = step.try_number()-1 # Номер поля которое заполняется
+    num = step.get_try_number() # Номер поля которое заполняется
     score[num].delete(0, "end")
     score[num].insert(0, sector)
-    if num < 2:
-        next_try(num)
-    else:
-        # Сумма третьей ячейки заполняется при наборе
-        step.try_change(sector, num)  # Заполняем информацию о броске и остаемся
-        scores.light_on(step.summa())  # Передаем набранную сумму чтобы засветить ее
+    step.set_try_score(int(sector))  # Записываем очки хода
+    all_score_labl['text'] = f'Итого: {step.summa()}'  # Показываем выбитую сумму
+    next_try()
+
 
 # Переход на правое поле (1 или 2), когда левое (0 или 1) правильно заполнено
-def next_try(num):
-    word[num + 1].focus()
-    word[num + 1].select_range(0, END)
-    step.try_change(int(score[num].get()), num + 1)  # Заполняем информацию о броске и переходим к следующему
+def next_try():
+    num = step.get_try_number() # Узнаем номер текущей попытки
+    if num < 2:
+        word[num + 1].focus()
+
+# Переход на левое поле (1 или 2)
+def previous_try():
+    num = step.get_try_number() # Узнаем номер текущей попытки
+    if num > 0:
+        word[num - 1].focus()
 
 # Нажатие Enter или кнопки Ок
 def enter():
-    num = step.try_number() - 1  # Номер поля на котором нажат Enter
+    num = step.get_try_number()  # Номер поля на котором нажат Enter
     if num < 2:
-        next_try(num) # Переход к следующему полю
+        next_try() # Переход к следующему полю
     else:
-        # Завершение хода игрока, переход к следующему
-        pass
+        if int(score[num].get()) == 0:
+            return
+        enter_or_esc()
+
+# Одинаковая часть для Enter и ESC
+def enter_or_esc():
+    if step.step_end():
+        # Ход сохраняется не в конец истории
+        if step.step_change():
+            # Результаты хода были изменены, спросим Будем ли сохранять, теряя историю
+            if not mb.askyesno('Внимание', 'Результаты хода были изменены. Сохранение хода приведет к потере дальнейшей '
+                                    'истории. Сохранить ход?' ):
+                return
+        else:
+            # Ход не был изменен поэтому совершается просто переход вперед по истории
+            history_next(0)
+            return
+    # Завершение хода игрока, переход к следующему
+    # Очищаем поля ввода
+    score[0].delete(0, "end")
+    score[0].insert(0, '0')
+    score[1].delete(0, "end")
+    score[1].insert(0, '0')
+    score[2].delete(0, "end")
+    score[2].insert(0, '0')
+    all_score_labl['text'] = f'Итого: 0'  # Обнуляем выбитую сумму
+    step.next_step() # Создаем новый ход
+    score[0].focus() # Фокус на первое поле ввода
+
+# Перемотка истории назад
+def history_previous(event):
+    step_old = step.history_previous()
+    if not step_old:
+        return
+    # Устанавливаем поля ввода
+    score[0].delete(0, "end")
+    score[0].insert(0, step_old.trys[0])
+    score[1].delete(0, "end")
+    score[1].insert(0, step_old.trys[1])
+    score[2].delete(0, "end")
+    score[2].insert(0, step_old.trys[2])
+    all_score_labl['text'] = f'Итого: {step.summa()}'  # Показываем выбитую сумму
+    score[step_old.try_number].focus() # Фокус на последнее поле ввода
+    word[step_old.try_number].select_range(0, END) # Выделяем данные в поле
+
+# Перемотка истории вперед
+def history_next(event):
+    step_next = step.history_next()
+    if not step_next:
+        return
+    # Устанавливаем поля ввода
+    score[0].delete(0, "end")
+    score[0].insert(0, step_next.trys[0])
+    score[1].delete(0, "end")
+    score[1].insert(0, step_next.trys[1])
+    score[2].delete(0, "end")
+    score[2].insert(0, step_next.trys[2])
+    all_score_labl['text'] = f'Итого: {step.summa()}'  # Показываем выбитую сумму
+    score[step_next.try_number].focus() # Фокус на последнее поле ввода
+    word[step_next.try_number].select_range(0, END) # Выделяем данные в поле
+
+# Нажата клавиша esc
+def esc(event):
+    step.null_step()
+    enter_or_esc()
 
 root = Tk()
 root.attributes("-fullscreen", True)
@@ -429,15 +531,6 @@ step = Steps(scores, players, root) # создаем первый ход, пер
 
 
 
-# pl1 = Label(root, text=players[who_step], font=f'Helvetica 30', width=10)
-# pl2 = Label(root, text=players[not who_step], font=f'Helvetica 30', width=10)
-# pl1.place(x=600, y=100)
-# pl2.place(x=900, y=100)
-#
-# sc1 = Label(root, text=0, font=f'Helvetica 50', width=10)
-# sc2 = Label(root, text=0, font=f'Helvetica 50', width=10)
-# sc1.place(x=530, y=200)
-# sc2.place(x=830, y=200)
 score = word = [0, 0, 0]
 score[0] = StringVar() # Переменная для поля ввода
 score[1] = StringVar()
@@ -445,16 +538,20 @@ score[2] = StringVar()
 word[0] = Entry(root, width=2, font="Helvetica 40", textvariable=score[0])
 word[1] = Entry(root, width=2, font="Helvetica 40", textvariable=score[1])
 word[2] = Entry(root, width=2, font="Helvetica 40", textvariable=score[2])
-word[0].place(x=450, y=550)
-word[1].place(x=530, y=550)
-word[2].place(x=610, y=550)
+word[0].place(x=450, y=535)
+word[1].place(x=530, y=535)
+word[2].place(x=610, y=535)
 word[0].bind('<FocusIn>', lambda event, x=0: focus_in_word(event, x))
 word[1].bind('<FocusIn>', lambda event, x=1: focus_in_word(event, x))
 word[2].bind('<FocusIn>', lambda event, x=2: focus_in_word(event, x))
-word[0].bind('<KeyRelease >', lambda event, x=0: word_press(event, x))
-word[1].bind('<KeyRelease >', lambda event, x=1: word_press(event, x))
-word[2].bind('<KeyRelease >', lambda event, x=2: word_press(event, x))
-# root.bind("<Escape>", clear)
+word[0].bind('<KeyRelease>', lambda event, x=0: word_press(event, x))
+word[1].bind('<KeyRelease>', lambda event, x=1: word_press(event, x))
+word[2].bind('<KeyRelease>', lambda event, x=2: word_press(event, x))
+all_score_labl = Label(root, text='Итого: 0', font=f'Helvetica 20', width=8, anchor="w")
+all_score_labl.place(x=450, y=605)
+root.bind("<Escape>", esc)
+root.bind("<Control-Right>", history_next)
+root.bind("<Control-Left>", history_previous)
 
 
 score[0].insert(0, '0')
@@ -477,3 +574,5 @@ Button(text=str('Ok'), command=enter, width=6, height=3, font="Helvetica 18").pl
 
 
 root.mainloop()
+
+
