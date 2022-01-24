@@ -13,12 +13,12 @@ class Steps:
         self.scores = scores
         self.players = players
         self.root = root
-        self.info_string_label = Label(root, text='', font=f'Helvetica 25', width=40, anchor="w")
+        self.info_string_label = Label(root, text='', font=f'Helvetica 25', width=40, anchor="w", fg='red4')
         self.info_string_label.place(x=450, y=470)
-        self.labl1 = Label(root, text='Лучшие сектора:', font=f'Helvetica 20', width=80, anchor="w")
-        self.labl1.place(x=450, y=655)
-        self.cute_string_label = Label(root, text='', font=f'Helvetica 20', width=80, anchor="w")
-        self.cute_string_label.place(x=450, y=695)
+        self.labl1 = Label(root, text='Лучшие сектора:', font=f'Helvetica 20', width=80, anchor="w", fg='red4')
+        self.labl1.place(x=450, y=670)
+        self.cute_string_label = Label(root, text='', font=f'Helvetica 20', width=80, anchor="w", fg='red4')
+        self.cute_string_label.place(x=450, y=710)
         self.history = []  # Список объектов ходов
         self.current_step = 0  # Текущий ход
         self.current_step_obj = 0 # Ссылка на текущий объект хода
@@ -48,6 +48,7 @@ class Steps:
     # Запись пустого хода, пропуск хода (при промахе, по клавише esc)
     def null_step(self):
         self.current_step_obj.trys = [0, 0, 0]  # Запоминаем выбитую сумму
+        self.for_show_hide_score()  # Изменение таблицы очков
 
     # Перемотка истории назад
     def history_previous(self):
@@ -229,7 +230,7 @@ class Scores:
         y = 10
         for key, val in all_res_dict.items():
             x = 100
-            btn = Button(root, text=key, font="Arial 10", width=5, relief=RIDGE)
+            btn = Button(root, text=key, font="Arial 10", width=5, relief=RIDGE, fg='blue')
             btn.place(x=x, y=y)
             x += 50
             for i in val:
@@ -288,7 +289,8 @@ class Scores:
                 if counter > 1:
                     return 0
                 result = button
-                result.delete_summ() # Сумма выбита, убираем ее из таблицы
+        if result:
+            result.delete_summ() # Сумма выбита, убираем ее из таблицы
         return result
 
     # Доступна ли сумма для записи True, если да
@@ -318,7 +320,7 @@ class Player():
 
 class Players():
     # Класс для управления игроками и их очками
-    def __init__(self, root):
+    def __init__(self, root, scores):
         # Читаем файл Players.txt с именами игроков
         try:
             PATH = os.path.join(sys.path[0], 'Players.txt')  # Путь к файлу с именами
@@ -336,11 +338,12 @@ class Players():
             # Создаем игроков и готовим турнирную таблицу
             self.players.append(Player(i, name)) # Номер игрока, имя, очки
             n = Label(root, text='', font=f'Helvetica {font_size}', width=20, anchor="w")
-            s = Label(root, text='0', font=f'Helvetica {font_size}', width=4, anchor="e")
+            s = Label(root, text='0', font=f'Helvetica {font_size}', width=4, anchor="e", fg='blue')
             n.place(x=space_x//8+450, y=50+i*spase_y)
             s.place(x=500+space_x, y=50+i*spase_y)
             self.string_table.append((n, s)) # В каждой строке имя и очки
         self.current_player = len(self.players) - 1 # Текущий игрок, ставим последнего, чтоб при первом запросе получить 1
+        self.scores = scores
 
     # Сделать текущим следующего игрока и вернуть его
     def next_player(self):
@@ -362,7 +365,12 @@ class Players():
         for i, st in enumerate(self.string_table):
             st[0]['text'] = players[i].get_name()
             st[1]['text'] = players[i].get_score()
-
+        # Если очки первого игрока больше чем сумма очков второго игрока и оставшихся в игре очков
+        # Значит его уже нельзя догнать, окрашиваем его имя красным или черным если это не так
+        if players[0].get_score() > (players[1].get_score() + self.scores.get_points_left()):
+            self.string_table[0][0]['fg'] = 'red'
+        else:
+            self.string_table[0][0]['fg'] = 'black'
 
 # Получение фокуса полями ввода, запрещает перемещение вправо, если слева остается нулевое поле
 # При удачном переходе запрашивает изменение попытки и таблицы очков
@@ -484,7 +492,7 @@ def enter_or_esc():
     score[0].focus() # Фокус на первое поле ввода
 
 # Перемотка истории назад
-def history_previous(event):
+def history_previous(event=0):
     step_old = step.history_previous()
     if not step_old:
         return
@@ -500,7 +508,7 @@ def history_previous(event):
     word[step_old.try_number].select_range(0, END) # Выделяем данные в поле
 
 # Перемотка истории вперед
-def history_next(event):
+def history_next(event=0):
     step_next = step.history_next()
     if not step_next:
         return
@@ -516,7 +524,7 @@ def history_next(event):
     word[step_next.try_number].select_range(0, END) # Выделяем данные в поле
 
 # Нажата клавиша esc
-def esc(event):
+def esc(event=0):
     step.null_step()
     enter_or_esc()
 
@@ -525,7 +533,7 @@ root.attributes("-fullscreen", True)
 
 scores = Scores() # Создаем объект управляющий очками, таблицей и подсказкой
 
-players = Players(root) # Создаем объекты игроков и турнирную таблицу
+players = Players(root, scores) # Создаем объекты игроков и турнирную таблицу, передаем ему экран и объект очков
 
 step = Steps(scores, players, root) # создаем первый ход, передаем ему объекты очков и игроков и объект экрана
 
@@ -547,11 +555,15 @@ word[2].bind('<FocusIn>', lambda event, x=2: focus_in_word(event, x))
 word[0].bind('<KeyRelease>', lambda event, x=0: word_press(event, x))
 word[1].bind('<KeyRelease>', lambda event, x=1: word_press(event, x))
 word[2].bind('<KeyRelease>', lambda event, x=2: word_press(event, x))
-all_score_labl = Label(root, text='Итого: 0', font=f'Helvetica 20', width=8, anchor="w")
+all_score_labl = Label(root, text='Итого: 0', font=f'Helvetica 20', width=8, anchor="w", fg='blue')
 all_score_labl.place(x=450, y=605)
 root.bind("<Escape>", esc)
 root.bind("<Control-Right>", history_next)
 root.bind("<Control-Left>", history_previous)
+
+Button(text='< Исория', command=history_previous, font="Helvetica 12").place(x=865, y=640)
+Button(text='Исория >', command=history_next, font="Helvetica 12").place(x=955, y=640)
+Button(text='Пропуск', command=esc, font="Helvetica 12").place(x=1063, y=640)
 
 
 score[0].insert(0, '0')
